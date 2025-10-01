@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Clash Royale</title>
+<style>
+  body { margin:0; font-family:sans-serif; text-align:center; background:#a8e0ff; }
+  canvas { background:#6fcf97; display:block; margin:0 auto; border:2px solid #333; }
+  button { margin:10px; padding:10px; font-size:16px; }
+</style>
+</head>
+<body>
+
+<h1>Mini Clash Royale</h1>
+<canvas id="game" width="600" height="400"></canvas>
+<div>
+  <button onclick="deployUnit('player')">Deploy Player Unit</button>
+  <button onclick="deployUnit('enemy')">Deploy Enemy Unit</button>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const towers = {
+  player: { x: 50, y: 200, hp: 100 },
+  enemy: { x: 550, y: 200, hp: 100 }
+};
+
+const units = [];
+
+function deployUnit(side){
+  const unit = {
+    x: side === 'player' ? 100 : 500,
+    y: 200,
+    speed: side === 'player' ? 1.5 : -1.5,
+    hp: 10,
+    side: side
+  };
+  units.push(unit);
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  
+  // Draw towers
+  ctx.fillStyle = 'blue';
+  ctx.fillRect(towers.player.x-20, towers.player.y-20, 40, 40);
+  ctx.fillStyle = 'red';
+  ctx.fillRect(towers.enemy.x-20, towers.enemy.y-20, 40, 40);
+  
+  // Draw units
+  units.forEach(u=>{
+    ctx.fillStyle = u.side === 'player' ? 'lightblue' : 'pink';
+    ctx.fillRect(u.x-10, u.y-10, 20, 20);
+    u.x += u.speed;
+    // Check collision with towers
+    if(u.side==='player' && u.x >= towers.enemy.x-20){ towers.enemy.hp -= 1; u.hp=0; }
+    if(u.side==='enemy' && u.x <= towers.player.x+20){ towers.player.hp -= 1; u.hp=0; }
+  });
+
+  // Remove dead units
+  for(let i=units.length-1;i>=0;i--){
+    if(units[i].hp <=0) units.splice(i,1);
+  }
+
+  // Draw HP
+  ctx.fillStyle='white';
+  ctx.font='16px Arial';
+  ctx.fillText('Player Tower HP: '+towers.player.hp, 20, 20);
+  ctx.fillText('Enemy Tower HP: '+towers.enemy.hp, 400, 20);
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+
+</body>
+</html>
