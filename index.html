@@ -7,35 +7,38 @@
 <style>
   body { margin:0; font-family:sans-serif; text-align:center; background:#a8e0ff; }
   canvas { background:#6fcf97; display:block; margin:0 auto; border:2px solid #333; }
-  button { margin:5px; padding:10px; font-size:16px; }
-  #cards { margin-top:10px; }
   .card { display:inline-block; width:60px; height:90px; margin:0 5px; background:#ccc; text-align:center; line-height:90px; cursor:pointer; user-select:none; }
+  #controls { text-align:center; margin-top:5px; }
+  button { padding:10px; font-size:16px; vertical-align:top; }
 </style>
 </head>
 <body>
 
 <h1>Mini Clash Royale</h1>
 <canvas id="game" width="800" height="400"></canvas>
-<div id="cards">
-  <div class="card" id="mini" draggable="true">Mini Person (2)</div>
-  <div class="card" id="big" draggable="true">Big Person (3)</div>
-  <div class="card" id="flying" draggable="true">Flying Skelly (2)</div>
+
+<div id="controls">
+  <div id="cards">
+    <div class="card" id="mini" draggable="true">Mini Person (2)</div>
+    <div class="card" id="big" draggable="true">Big Person (3)</div>
+    <div class="card" id="flying" draggable="true">Flying Skelly (2)</div>
+  </div>
+  <button onclick="resetGame()">Reset Game</button>
+  <span style="margin-left:20px;">Elixir: <span id="elixirDisplay">2</span></span>
 </div>
-<button onclick="resetGame()">Reset Game</button>
-<div>Elixir: <span id="elixirDisplay">2</span></div>
 
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
-// Game variables
 let units = [];
 let elixir = 2;
 const maxElixir = 10;
 let enemyTimer = 0;
 const elixirRate = 2; // seconds per 1 elixir
+let gameOver = false;
 
-// Towers
+// Tower and bridge setup
 let towers;
 function resetGame() {
   towers = {
@@ -53,18 +56,19 @@ function resetGame() {
   units = [];
   elixir = 2;
   enemyTimer = 0;
+  gameOver = false;
   updateElixir();
 }
 resetGame();
 
-// Card data
+// Card definitions
 const cardData = {
-  'mini': { type:'Mini Person', hp:5, damage:4, speed:1.5, flying:false, elixir:2 },
-  'big': { type:'Big Person', hp:8, damage:2, speed:1, flying:false, elixir:3 },
-  'flying': { type:'Flying Skelly', hp:4, damage:2, speed:2, flying:true, elixir:2 }
+  'mini': { type:'Mini Person', hp:15, damage:4, speed:1.5, flying:false, elixir:2 },
+  'big': { type:'Big Person', hp:25, damage:2, speed:1, flying:false, elixir:3 },
+  'flying': { type:'Flying Skelly', hp:15, damage:2, speed:2, flying:true, elixir:2 }
 };
 
-// Drag-and-drop deployment
+// Drag and drop cards
 const cards = document.querySelectorAll('.card');
 cards.forEach(card => {
   card.addEventListener('dragstart', e => { e.dataTransfer.setData('text', card.id); });
@@ -75,8 +79,13 @@ canvas.addEventListener('drop', e => {
   e.preventDefault();
   const cardId = e.dataTransfer.getData('text');
   const data = cardData[cardId];
-  if(elixir >= data.elixir && e.offsetX < canvas.width/2){
-    units.push({ ...data, x:e.offsetX, y:e.offsetY, side:'player' });
+  if(elixir >= data.elixir && e.offsetX < canvas.width/2 && !gameOver){
+    // Snap ground units to top/bottom bridge
+    let y = e.offsetY;
+    if(!data.flying){
+      y = (y < canvas.height/2) ? canvas.height/2 -15 : canvas.height/2 +15;
+    }
+    units.push({ ...data, x:e.offsetX, y, side:'player' });
     elixir -= data.elixir;
     updateElixir();
   }
@@ -84,80 +93,103 @@ canvas.addEventListener('drop', e => {
 
 // Elixir regen
 function updateElixir() { document.getElementById('elixirDisplay').innerText = elixir; }
-setInterval(() => { elixir = Math.min(elixir+1, maxElixir); updateElixir(); }, elixirRate*1000);
+setInterval(() => {
+  if(!gameOver) { elixir = Math.min(elixir+1, maxElixir); updateElixir(); }
+}, elixirRate*1000);
+
+// Enemy spawn
+function spawnEnemyUnit(cardId){
+  const data = cardData[cardId];
+  const y = Math.random()>0.5? 100 : 300;
+  units.push({ ...data, x:700, y, side:'enemy' });
+}
 
 // Game loop
 function draw() {
+  if(gameOver) return;
+
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // Draw water
+  // Draw water (horizontal stream)
   ctx.fillStyle='blue';
-  ctx.fillRect(0, canvas.height/2 -50, canvas.width, 100);
+  ctx.fillRect(0, canvas.height/2 -20, canvas.width, 40);
 
-  // Draw bridges
+  // Draw narrow bridges
   ctx.fillStyle='brown';
-  ctx.fillRect(0, canvas.height/2 -50, canvas.width, 20);
-  ctx.fillRect(0, canvas.height/2 +30, canvas.width, 20);
+  ctx.fillRect(0, canvas.height/2 -20, canvas.width, 10);
+  ctx.fillRect(0, canvas.height/2 +10, canvas.width, 10);
 
-  // Spawn enemy units
+  // Enemy AI spawn ~5 seconds
   enemyTimer += 1/60;
-  if(enemyTimer >= 2){
+  if(enemyTimer >= 5){
     const choice = Math.random();
     if(choice<0.5) spawnEnemyUnit('mini');
     else spawnEnemyUnit('big');
-    enemyTimer=0;
+    enemyTimer = 0;
   }
 
-  // Move units and handle combat
-  units.forEach(u=>{
-    // Move unit
-    if(u.flying){ u.x += (u.side==='player'?1.5: -1.5); } 
-    else {
-      // Move along bridges
-      if(u.y < canvas.height/2 -40) u.y = canvas.height/2 -40;
-      else if(u.y > canvas.height/2 +40) u.y = canvas.height/2 +40;
+  // Move units and combat
+  units.forEach(u => {
+    if(u.flying){ u.x += (u.side==='player'? u.speed : -u.speed); }
+    else{
+      // Ground units snap to bridges
+      u.y = (u.y < canvas.height/2) ? canvas.height/2 -15 : canvas.height/2 +15;
       u.x += (u.side==='player'? u.speed : -u.speed);
     }
 
-    // Attack enemy units first
-    let attacked = false;
+    // Combat with enemy units
     units.forEach(other=>{
       if(other.side !== u.side){
         const dx = Math.abs(u.x - other.x);
         const dy = Math.abs(u.y - other.y);
         if(dx<20 && dy<20){
-          if(u.type !== 'Big Person') u.hp -= 0.1; // Big Person ignores units
-          other.hp -= u.damage * 0.1;
-          attacked = true;
+          if(u.type!=='Big Person') u.hp -= other.damage*0.1;
+          other.hp -= u.damage*0.1;
         }
       }
     });
 
-    // Attack towers if no unit attacked
-    if(!attacked){
-      let targetTower;
-      if(u.side==='player'){
-        if((u.type!=='Flying Skelly' && u.x>towers.enemy.princess1.x-20) || (u.type!=='Flying Skelly' && u.x>towers.enemy.princess2.x-20)){
-          // Logic: cannot attack king until princess fallen
-          if(towers.enemy.princess1.hp>0) targetTower=towers.enemy.princess1;
-          else if(towers.enemy.princess2.hp>0) targetTower=towers.enemy.princess2;
-          else targetTower=towers.enemy.king;
-        } else {
-          targetTower=towers.enemy.princess1; // default
-        }
-      } else {
-        if(u.type==='Big Person') targetTower=towers.player.princess1; // attacks towers only
-        else targetTower=towers.player.princess1; // simple targeting
+    // Attack towers if no unit blocking or Big Person
+    let targetTower=null;
+    if(u.side==='player'){
+      if(u.type==='Big Person' || !units.some(ou=>ou.side==='enemy')){
+        if(towers.enemy.princess1.hp>0) targetTower=towers.enemy.princess1;
+        else if(towers.enemy.princess2.hp>0) targetTower=towers.enemy.princess2;
+        else targetTower=towers.enemy.king;
       }
-      if(targetTower) targetTower.hp -= u.damage * 0.1;
+    } else {
+      if(u.type==='Big Person' || !units.some(ou=>ou.side==='player')){
+        if(towers.player.princess1.hp>0) targetTower=towers.player.princess1;
+        else if(towers.player.princess2.hp>0) targetTower=towers.player.princess2;
+        else targetTower=towers.player.king;
+      }
     }
+    if(targetTower){ targetTower.hp -= u.damage*0.1; if(targetTower.hp<0) targetTower.hp=0; }
   });
 
   // Remove dead units
   for(let i=units.length-1;i>=0;i--){ if(units[i].hp<=0) units.splice(i,1); }
 
   // Draw towers
-  function drawTower(tower,x,y,color){ ctx.fillStyle=color; ctx.fillRect(x-20,y-20,40,40); ctx.fillStyle='white'; ctx.fillText(tower.hp,x-15,y-25);}
+  function drawTower(tower,x,y,color){
+    if(tower.hp>0){
+      ctx.fillStyle=color;
+      ctx.fillRect(x-20,y-20,40,40);
+    } else {
+      ctx.fillStyle='gray';
+      ctx.fillRect(x-20,y-20,40,40);
+      ctx.strokeStyle='black';
+      ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(x-20,y-20); ctx.lineTo(x+20,y+20);
+      ctx.moveTo(x+20,y-20); ctx.lineTo(x-20,y+20);
+      ctx.stroke();
+    }
+    ctx.fillStyle='white';
+    ctx.font='12px Arial';
+    ctx.fillText(Math.ceil(tower.hp), x-10, y-25);
+  }
+
   drawTower(towers.player.princess1,towers.player.princess1.x,towers.player.princess1.y,'blue');
   drawTower(towers.player.princess2,towers.player.princess2.x,towers.player.princess2.y,'blue');
   drawTower(towers.player.king,towers.player.king.x,towers.player.king.y,'darkblue');
@@ -167,20 +199,18 @@ function draw() {
 
   // Draw units
   units.forEach(u=>{
-    let color = 'yellow';
+    let color='yellow';
     if(u.type==='Big Person') color='red';
     if(u.type==='Flying Skelly') color='grey';
     ctx.fillStyle=color;
     ctx.fillRect(u.x-10,u.y-10,20,20);
   });
 
-  requestAnimationFrame(draw);
-}
+  // Check King Tower destruction
+  if(towers.player.king.hp<=0){ gameOver=true; alert("You Lose!"); return; }
+  if(towers.enemy.king.hp<=0){ gameOver=true; alert("You Win!"); return; }
 
-// Spawn enemy unit helper
-function spawnEnemyUnit(cardId){
-  const data = cardData[cardId];
-  units.push({ ...data, x:700, y:Math.random()>0.5?100:300, side:'enemy' });
+  requestAnimationFrame(draw);
 }
 
 draw();
