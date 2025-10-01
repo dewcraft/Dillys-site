@@ -1,37 +1,91 @@
-// Spawn enemy units automatically
-let enemyTimer = 0;
-function spawnEnemyUnit() {
-  const unit = {
-    x: 500,
-    y: 200,
-    speed: -1.5,
-    hp: 10,
-    side: 'enemy'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Clash Royale</title>
+<style>
+  body { margin:0; font-family:sans-serif; text-align:center; background:#a8e0ff; }
+  canvas { background:#6fcf97; display:block; margin:0 auto; border:2px solid #333; }
+  button { margin:10px; padding:10px; font-size:16px; }
+</style>
+</head>
+<body>
+
+<h1>Mini Clash Royale</h1>
+<canvas id="game" width="600" height="400"></canvas>
+<div>
+  <button onclick="deployPlayerUnit()">Deploy Player Unit</button>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+let towers, units, enemyTimer;
+
+// Initialize or reset game
+function resetGame() {
+  towers = {
+    player: { x: 50, y: 200, hp: 100 },
+    enemy: { x: 550, y: 200, hp: 100 }
   };
-  units.push(unit);
+  units = [];
+  enemyTimer = 0;
 }
 
-// Game loop
+resetGame();
+
+// Deploy player unit
+function deployPlayerUnit() {
+  units.push({ x: 100, y: 200, speed: 1.5, hp: 10, side: 'player' });
+}
+
+// Spawn enemy unit automatically
+function spawnEnemyUnit() {
+  units.push({ x: 500, y: 200, speed: -1.5, hp: 10, side: 'enemy' });
+}
+
+// Draw tower with break effect
+function drawTower(tower, color) {
+  if(tower.hp > 0){
+    ctx.fillStyle = color;
+    ctx.fillRect(tower.x-20, tower.y-20, 40, 40);
+  } else {
+    // Broken tower effect
+    ctx.fillStyle = 'gray';
+    ctx.fillRect(tower.x-20, tower.y-20, 40, 40);
+    ctx.strokeStyle = 'black';
+    ctx.beginPath();
+    ctx.moveTo(tower.x-20, tower.y-20);
+    ctx.lineTo(tower.x+20, tower.y+20);
+    ctx.moveTo(tower.x+20, tower.y-20);
+    ctx.lineTo(tower.x-20, tower.y+20);
+    ctx.stroke();
+  }
+}
+
+// Display message and reset after 2 seconds
+function endGame(message) {
+  ctx.fillStyle = 'yellow';
+  ctx.font = '30px Arial';
+  ctx.fillText(message, canvas.width/2 - 80, canvas.height/2);
+  setTimeout(resetGame, 2000);
+}
+
+// Main game loop
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // Draw towers
-  ctx.fillStyle = 'blue';
-  ctx.fillRect(towers.player.x-20, towers.player.y-20, 40, 40);
-  ctx.fillStyle = 'red';
-  ctx.fillRect(towers.enemy.x-20, towers.enemy.y-20, 40, 40);
-
-  // Spawn enemy units every 2 seconds
-  enemyTimer += 1/60; // assuming 60fps
+  // Spawn enemy units
+  enemyTimer += 1/60;
   if(enemyTimer >= 2){
     spawnEnemyUnit();
     enemyTimer = 0;
   }
 
-  // Move and resolve units
-  units.forEach(u=>{
-    ctx.fillStyle = u.side === 'player' ? 'lightblue' : 'pink';
-    ctx.fillRect(u.x-10, u.y-10, 20, 20);
+  // Move units
+  units.forEach(u => {
     u.x += u.speed;
 
     // Attack towers
@@ -39,11 +93,11 @@ function draw() {
     if(u.side==='enemy' && u.x <= towers.player.x+20){ towers.player.hp -= 1; u.hp=0; }
 
     // Attack other units
-    units.forEach(other=>{
+    units.forEach(other => {
       if(other !== u && other.side !== u.side){
         const dx = Math.abs(u.x - other.x);
         const dy = Math.abs(u.y - other.y);
-        if(dx < 20 && dy < 20){ // collision
+        if(dx < 20 && dy < 20){
           u.hp -= 0.5;
           other.hp -= 0.5;
         }
@@ -56,13 +110,37 @@ function draw() {
     if(units[i].hp <=0) units.splice(i,1);
   }
 
-  // Draw HP
+  // Draw units
+  units.forEach(u => {
+    ctx.fillStyle = u.side==='player' ? 'lightblue' : 'pink';
+    ctx.fillRect(u.x-10, u.y-10, 20, 20);
+  });
+
+  // Draw towers
+  drawTower(towers.player, 'blue');
+  drawTower(towers.enemy, 'red');
+
+  // Draw tower HP
   ctx.fillStyle='white';
   ctx.font='16px Arial';
   ctx.fillText('Player Tower HP: '+towers.player.hp, 20, 20);
   ctx.fillText('Enemy Tower HP: '+towers.enemy.hp, 400, 20);
 
+  // Check win/loss
+  if(towers.enemy.hp <= 0){
+    endGame('YOU WIN!');
+    return;
+  }
+  if(towers.player.hp <= 0){
+    endGame('YOU LOSE!');
+    return;
+  }
+
   requestAnimationFrame(draw);
 }
 
 draw();
+</script>
+
+</body>
+</html>
