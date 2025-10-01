@@ -1,63 +1,54 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mini Clash Royale</title>
-<style>
-  body { margin:0; font-family:sans-serif; text-align:center; background:#a8e0ff; }
-  canvas { background:#6fcf97; display:block; margin:0 auto; border:2px solid #333; }
-  button { margin:10px; padding:10px; font-size:16px; }
-</style>
-</head>
-<body>
-
-<h1>Mini Clash Royale</h1>
-<canvas id="game" width="600" height="400"></canvas>
-<div>
-  <button onclick="deployUnit('player')">Deploy Player Unit</button>
-  <button onclick="deployUnit('enemy')">Deploy Enemy Unit</button>
-</div>
-
-<script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-
-const towers = {
-  player: { x: 50, y: 200, hp: 100 },
-  enemy: { x: 550, y: 200, hp: 100 }
-};
-
-const units = [];
-
-function deployUnit(side){
+// Spawn enemy units automatically
+let enemyTimer = 0;
+function spawnEnemyUnit() {
   const unit = {
-    x: side === 'player' ? 100 : 500,
+    x: 500,
     y: 200,
-    speed: side === 'player' ? 1.5 : -1.5,
+    speed: -1.5,
     hp: 10,
-    side: side
+    side: 'enemy'
   };
   units.push(unit);
 }
 
+// Game loop
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  
+
   // Draw towers
   ctx.fillStyle = 'blue';
   ctx.fillRect(towers.player.x-20, towers.player.y-20, 40, 40);
   ctx.fillStyle = 'red';
   ctx.fillRect(towers.enemy.x-20, towers.enemy.y-20, 40, 40);
-  
-  // Draw units
+
+  // Spawn enemy units every 2 seconds
+  enemyTimer += 1/60; // assuming 60fps
+  if(enemyTimer >= 2){
+    spawnEnemyUnit();
+    enemyTimer = 0;
+  }
+
+  // Move and resolve units
   units.forEach(u=>{
     ctx.fillStyle = u.side === 'player' ? 'lightblue' : 'pink';
     ctx.fillRect(u.x-10, u.y-10, 20, 20);
     u.x += u.speed;
-    // Check collision with towers
+
+    // Attack towers
     if(u.side==='player' && u.x >= towers.enemy.x-20){ towers.enemy.hp -= 1; u.hp=0; }
     if(u.side==='enemy' && u.x <= towers.player.x+20){ towers.player.hp -= 1; u.hp=0; }
+
+    // Attack other units
+    units.forEach(other=>{
+      if(other !== u && other.side !== u.side){
+        const dx = Math.abs(u.x - other.x);
+        const dy = Math.abs(u.y - other.y);
+        if(dx < 20 && dy < 20){ // collision
+          u.hp -= 0.5;
+          other.hp -= 0.5;
+        }
+      }
+    });
   });
 
   // Remove dead units
@@ -75,7 +66,3 @@ function draw() {
 }
 
 draw();
-</script>
-
-</body>
-</html>
