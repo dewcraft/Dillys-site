@@ -12,3 +12,4 @@ Alt-H1
 
 Alt-H2
 ------
+[Contribution guidelines for this project](docs/CONTRIBUTING.md)
